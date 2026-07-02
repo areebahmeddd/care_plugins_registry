@@ -1,0 +1,56 @@
+# https://developers.cloudflare.com/pages/configuration/headers/
+#
+# remoteEntry.js   no-store  (changes on every deployment)
+# hashed chunks    immutable (filename includes content hash, safe to cache forever)
+# manifest.json    no-store  (reflects the latest deployment)
+
+# Federation entry points
+/*/assets/remoteEntry.js
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, OPTIONS
+  Cache-Control: no-store, must-revalidate
+  X-Content-Type-Options: nosniff
+
+# Content-hashed JS and CSS chunks
+/*/assets/*.js
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, OPTIONS
+  Cache-Control: public, max-age=31536000, immutable
+  X-Content-Type-Options: nosniff
+
+/*/assets/*.css
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=31536000, immutable
+
+# Fonts
+/*/assets/*.woff2
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=31536000, immutable
+
+/*/assets/*.woff
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=31536000, immutable
+
+# Images
+/*/assets/*.png
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=31536000, immutable
+
+/*/assets/*.svg
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=31536000, immutable
+
+# Hub discovery endpoint
+/manifest.json
+  Access-Control-Allow-Origin: *
+  Cache-Control: no-store, must-revalidate
+  Content-Type: application/json; charset=utf-8
+
+# Plugin locale files (fetched cross-origin by care_fe)
+/*/locale/*.json
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=3600
+
+/*/public/locale/*.json
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=3600

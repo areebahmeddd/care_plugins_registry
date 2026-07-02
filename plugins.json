@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "plugins": [
+    {
+      "slug": "care_ai_vision",
+      "name": "CARE AI Vision",
+      "repo": "ohcnetwork/care_ai_vision_fe",
+      "ref": "main",
+      "buildDir": "dist",
+      "registrySlug": "care_ai_vision_fe"
+    },
+    {
+      "slug": "care_analytics",
+      "name": "CARE Analytics",
+      "repo": "ohcnetwork/care_analytics_fe",
+      "ref": "master",
+      "buildDir": "dist",
+      "registrySlug": "care_analytics_fe"
+    },
+    {
+      "slug": "care_excalidraw",
+      "name": "CARE Excalidraw",
+      "repo": "ohcnetwork/care_excalidraw_fe",
+      "ref": "main",
+      "buildDir": "dist",
+      "registrySlug": "care_excalidraw"
+    },
+    {
+      "slug": "care_pretty_print",
+      "name": "CARE Pretty Print",
+      "repo": "ohcnetwork/care_pretty_print_fe",
+      "ref": "main",
+      "buildDir": "dist",
+      "registrySlug": "care_pretty_print_fe"
+    },
+    {
+      "slug": "care_system_diagnostics",
+      "name": "CARE System Diagnostics",
+      "repo": "ohcnetwork/care_system_diagnostics_fe",
+      "ref": "main",
+      "buildDir": "dist",
+      "registrySlug": "care_system_diagnostics_fe"
+    }
+  ]
+}
