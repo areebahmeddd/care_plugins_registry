@@ -8,6 +8,12 @@
   Cache-Control: public, max-age=31536000, immutable
   X-Content-Type-Options: nosniff
 
+# Shared root assets (plugin CSS font paths use Vite's default base: '/')
+/assets/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=31536000, immutable
+  X-Content-Type-Options: nosniff
+
 # remoteEntry.js is unhashed, clear the immutable above then set no-store
 /:slug/assets/remoteEntry.js
   ! Cache-Control
