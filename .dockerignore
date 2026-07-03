@@ -1,0 +1,5 @@
+# Only Caddyfile and merged-dist/ are copied into the image.
+*
+!Caddyfile
+!merged-dist/
+!merged-dist/**

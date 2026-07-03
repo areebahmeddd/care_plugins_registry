@@ -31,9 +31,7 @@ const builtSlugs = readdirSync(MERGED_DIST).filter((entry) => {
 const deployedAt = new Date().toISOString();
 
 const registryBaseUrl =
-  process.env.REGISTRY_BASE_URL ||
-  process.env.CF_PAGES_URL ||
-  `https://${process.env.CLOUDFLARE_PAGES_PROJECT_NAME || "care-plugins-registry"}.pages.dev`;
+  process.env.REGISTRY_BASE_URL || "http://localhost";
 
 const manifest = {
   schemaVersion: 1,

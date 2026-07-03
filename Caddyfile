@@ -1,0 +1,51 @@
+{
+    admin off
+    log default {
+        output stdout
+        format console
+        level INFO
+    }
+}
+
+:80 {
+    root * /srv
+    file_server
+
+    # CORS and security for all plugin sub-paths
+    @pluginPaths path_regexp ^/[^/]+/
+    header @pluginPaths {
+        Access-Control-Allow-Origin "*"
+        X-Content-Type-Options      "nosniff"
+    }
+
+    # Hashed assets: safe to cache forever (content hash in filename)
+    @hashedAssets path_regexp ^/[^/]+/assets/
+    header @hashedAssets {
+        Cache-Control "public, max-age=31536000, immutable"
+    }
+
+    # remoteEntry.js: never cache (filename is unhashed)
+    @remoteEntry path_regexp ^/[^/]+/assets/remoteEntry\.js$
+    header @remoteEntry {
+        -Cache-Control
+        Cache-Control "no-store, must-revalidate"
+    }
+
+    # Locale files: short cache
+    @localeFiles path_regexp ^/[^/]+/locale/
+    header @localeFiles {
+        -Cache-Control
+        Cache-Control "public, max-age=3600"
+    }
+
+    # Registry manifest: always fetch fresh
+    @manifest path /manifest.json
+    header @manifest {
+        Cache-Control               "no-store, must-revalidate"
+        Content-Type                "application/json; charset=utf-8"
+        Access-Control-Allow-Origin "*"
+        X-Content-Type-Options      "nosniff"
+    }
+
+    encode zstd gzip
+}

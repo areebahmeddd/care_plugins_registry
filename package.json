@@ -1,13 +1,10 @@
 {
   "name": "care_plugins_registry",
   "version": "1.0.0",
-  "description": "Cloudflare Pages deployment for all CARE frontend plugins.",
+  "description": "Docker + Caddy deployment for all CARE frontend plugins.",
   "type": "module",
   "scripts": {
     "generate-manifest": "node scripts/generate-manifest.mjs",
     "validate": "node scripts/validate-plugins.mjs"
-  },
-  "devDependencies": {
-    "wrangler": "^4.x"
   }
 }

@@ -1,36 +1,44 @@
 # CARE Plugins Registry
 
-A single [Cloudflare Pages](https://pages.cloudflare.com) project that builds and serves all CARE frontend plugins under one domain.
+A single Docker image (served by [Caddy](https://caddyserver.com)) that builds and hosts all CARE frontend plugins under one domain.
 
 ```
-https://care-plugins-registry.pages.dev/<slug>/assets/remoteEntry.js
+https://your-registry-domain.com/<slug>/assets/remoteEntry.js
 ```
 
 ## Overview
 
-Each CARE frontend plugin is a [Vite Module Federation](https://github.com/originjs/vite-plugin-federation) remote that the `care_fe` host loads at runtime via a `remoteEntry.js` URL. Historically each plugin has been deployed to its own Cloudflare Pages project. This repository centralises that into a single deployment: one pipeline, one project, one domain.
+Each CARE frontend plugin is a [Vite Module Federation](https://github.com/originjs/vite-plugin-federation) remote that `care_fe` loads at runtime via a `remoteEntry.js` URL. This registry centralises all plugins into a single deployment: one pipeline, one image, one domain.
 
 ```
 plugins.json
     |
     v
 GitHub Actions matrix  (one parallel job per plugin)
-    |  git clone -> install -> npm run build -> upload artifact
+    |  git clone → npm ci → npm run build → upload artifact
     v
-deploy job  (merges all artifacts, adds _headers and manifest.json)
+publish job  (merges all artifacts, generates manifest.json, docker build)
     |
     v
-Cloudflare Pages  (merged-dist/ deployed as static assets)
-    merged-dist/
-      care_excalidraw/
-        assets/
-          remoteEntry.js
-          <hashed-chunks>.js
-      care_ai_vision/
-        assets/
-          remoteEntry.js
-      manifest.json
-      _headers
+GHCR (ghcr.io/areebahmeddd/care_plugins_registry)
+    |
+    v
+VPS / any Docker host
+    docker compose pull && docker compose up -d
+```
+
+```
+merged-dist/  (baked into the image at build time)
+  care_excalidraw/
+    assets/
+      remoteEntry.js
+      <hashed-chunks>.js
+    locale/
+      en.json
+  care_ai_vision/
+    assets/
+      remoteEntry.js
+  manifest.json
 ```
 
 ## Supported plugins
@@ -45,51 +53,50 @@ Cloudflare Pages  (merged-dist/ deployed as static assets)
 
 ## Setup
 
-### 1. Create the Cloudflare Pages project
+### 1. Add the repository variable
+
+In **Settings → Secrets and variables → Actions → Variables**:
+
+| Name                | Value                                |
+| ------------------- | ------------------------------------ |
+| `REGISTRY_BASE_URL` | `https://your-registry-domain.com`   |
+
+`GITHUB_TOKEN` is provided automatically — no extra secrets needed for GHCR.
+
+### 2. Push to main
+
+The workflow reads `plugins.json`, builds all plugins in parallel, assembles `merged-dist/`, generates `manifest.json`, then builds and pushes a multi-platform Docker image to GHCR:
+
+```
+ghcr.io/areebahmeddd/care_plugins_registry:latest
+ghcr.io/areebahmeddd/care_plugins_registry:sha-<short-sha>
+```
+
+### 3. Run on a server
 
 ```bash
-npx wrangler pages project create care-plugins-registry
+# Pull docker-compose.yml onto your server
+curl -O https://raw.githubusercontent.com/areebahmeddd/care_plugins_registry/main/docker-compose.yml
+
+docker compose pull
+docker compose up -d
 ```
 
-This registers the project name in your Cloudflare account. No Git integration in Cloudflare is required; the GitHub Actions workflow deploys via the API.
-
-### 2. Add repository secrets and variables
-
-In **Settings > Secrets and variables > Actions**:
-
-| Name                            | Type     | Value                                              |
-| ------------------------------- | -------- | -------------------------------------------------- |
-| `CLOUDFLARE_API_TOKEN`          | Secret   | API token with _Cloudflare Pages: Edit_ permission |
-| `CLOUDFLARE_ACCOUNT_ID`         | Secret   | Account ID from the Cloudflare dashboard URL       |
-| `CLOUDFLARE_PAGES_PROJECT_NAME` | Variable | `care-plugins-registry` (or your custom name)      |
-
-### 3. Push to main
-
-The workflow reads `plugins.json`, builds all plugins in parallel, assembles the output directory, and deploys to Cloudflare Pages.
-
-Check the deployment:
+Verify:
 
 ```
-https://care-plugins-registry.pages.dev/manifest.json
+http://your-server-ip/manifest.json
 ```
 
 ## Connecting plugins to CARE
 
-### Via the App Store UI
-
-Set the **App base URL** to:
-
-```
-https://care-plugins-registry.pages.dev/<slug>
-```
-
-For example: `https://care-plugins-registry.pages.dev/care_excalidraw/assets/remoteEntry.js`
-
 ### Via `REACT_ENABLED_APPS`
 
 ```env
-REACT_ENABLED_APPS=ohcnetwork/care_excalidraw_fe@care-plugins-registry.pages.dev/care_excalidraw/assets/remoteEntry.js
+REACT_ENABLED_APPS=ohcnetwork/care_excalidraw_fe@your-registry-domain.com/care_excalidraw/assets/remoteEntry.js
 ```
+
+> Note: no `https://` prefix — `care_fe` adds the protocol automatically.
 
 ### Via the plug_config API
 
@@ -97,7 +104,7 @@ REACT_ENABLED_APPS=ohcnetwork/care_excalidraw_fe@care-plugins-registry.pages.dev
 {
   "slug": "care_excalidraw",
   "meta": {
-    "url": "https://care-plugins-registry.pages.dev/care_excalidraw/assets/remoteEntry.js",
+    "url": "https://your-registry-domain.com/care_excalidraw/assets/remoteEntry.js",
     "name": "care_excalidraw"
   }
 }
@@ -118,10 +125,16 @@ Add an entry to `plugins.json`:
 }
 ```
 
+Validate the entry locally:
+
+```bash
+npm run validate
+```
+
 Merge to `main`. The plugin becomes available at:
 
 ```
-https://care-plugins-registry.pages.dev/<slug>/assets/remoteEntry.js
+https://your-registry-domain.com/<slug>/assets/remoteEntry.js
 ```
 
 ## Pinning versions
@@ -135,22 +148,26 @@ https://care-plugins-registry.pages.dev/<slug>/assets/remoteEntry.js
 ## Local testing
 
 ```bash
-# Clone and build a plugin
+# Build one plugin manually
 git clone --depth=1 https://github.com/ohcnetwork/care_excalidraw_fe
-cd care_excalidraw_fe && npm install && npm run build && cd ..
+cd care_excalidraw_fe && npm ci && npm run build && cd ..
 
-# Assemble and preview
+# Assemble
 mkdir -p merged-dist/care_excalidraw
 cp -r care_excalidraw_fe/dist/. merged-dist/care_excalidraw/
-cp _headers merged-dist/_headers
-node scripts/generate-manifest.mjs
-npx wrangler pages dev merged-dist --port 8788
+
+# Generate manifest
+REGISTRY_BASE_URL=http://localhost node scripts/generate-manifest.mjs
+
+# Build and run the image
+docker build -t care_plugins_registry .
+docker run -p 80:80 care_plugins_registry
 ```
 
 Point a local CARE instance at it:
 
 ```env
-REACT_ENABLED_APPS=ohcnetwork/care_excalidraw_fe@localhost:8788/care_excalidraw/assets/remoteEntry.js
+REACT_ENABLED_APPS=ohcnetwork/care_excalidraw_fe@localhost/care_excalidraw/assets/remoteEntry.js
 ```
 
 ## Triggering a single-plugin rebuild

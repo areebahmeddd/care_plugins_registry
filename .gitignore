@@ -4,8 +4,8 @@ node_modules/
 # Build output
 merged-dist/
 
-# Wrangler local state
-.wrangler/
+# Caddy local state
+Caddyfile.lock
 
 # Environment
 .env

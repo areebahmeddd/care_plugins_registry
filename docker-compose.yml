@@ -1,0 +1,6 @@
+services:
+  registry:
+    image: ghcr.io/areebahmeddd/care_plugins_registry:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"

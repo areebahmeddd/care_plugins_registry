@@ -1,4 +1,4 @@
-name: Build and Deploy Plugin Registry
+name: Build and Publish Plugin Registry
 
 on:
   push:
@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   generate-matrix:
@@ -106,8 +107,8 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  deploy:
-    name: Deploy to Cloudflare Pages
+  publish:
+    name: Build and publish Docker image
     needs: build-plugin
     runs-on: ubuntu-latest
     # Proceeds even if individual plugin builds fail
@@ -141,26 +142,46 @@ jobs:
             echo "$slug  ($(du -sh "merged-dist/$slug" | cut -f1))"
           done
 
-          cp _headers merged-dist/_headers
-
       - name: Generate manifest
         run: node scripts/generate-manifest.mjs
         env:
-          CLOUDFLARE_PAGES_PROJECT_NAME: ${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }}
+          REGISTRY_BASE_URL: ${{ vars.REGISTRY_BASE_URL }}
 
-      - name: Deployment summary
+      - name: Publish summary
         run: |
-          TOTAL=$(ls merged-dist/ | grep -v '^[_m]' | wc -l)
-          echo "Deploying $TOTAL plugin(s)"
+          TOTAL=$(ls merged-dist/ | grep -v '^manifest' | wc -l)
+          echo "Packaging $TOTAL plugin(s) into Docker image"
           du -sh merged-dist/*/ 2>/dev/null | sort -h || true
 
-      - name: Deploy to Cloudflare Pages
-        run: |
-          npx wrangler@latest pages deploy merged-dist \
-            --project-name="${CLOUDFLARE_PAGES_PROJECT_NAME}" \
-            --branch=main \
-            --commit-dirty=true
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_PAGES_PROJECT_NAME: ${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }}
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-
+
+      - name: Set up QEMU (multi-platform)
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
