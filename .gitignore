@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+
+# Build output
+merged-dist/
+
+# Wrangler local state
+.wrangler/
+
+# Environment
+.env
+.env.local

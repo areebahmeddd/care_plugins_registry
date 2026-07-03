@@ -83,14 +83,12 @@ Set the **App base URL** to:
 https://care-plugins-registry.pages.dev/<slug>
 ```
 
-For example: `https://care-plugins-registry.pages.dev/care_excalidraw`
-
-CARE computes the remoteEntry URL as `{appBaseUrl}/assets/remoteEntry.js`.
+For example: `https://care-plugins-registry.pages.dev/care_excalidraw/assets/remoteEntry.js`
 
 ### Via `REACT_ENABLED_APPS`
 
 ```env
-REACT_ENABLED_APPS=ohcnetwork/care_excalidraw_fe@https://care-plugins-registry.pages.dev/care_excalidraw/assets/remoteEntry.js
+REACT_ENABLED_APPS=ohcnetwork/care_excalidraw_fe@care-plugins-registry.pages.dev/care_excalidraw/assets/remoteEntry.js
 ```
 
 ### Via the plug_config API
@@ -152,7 +150,7 @@ npx wrangler pages dev merged-dist --port 8788
 Point a local CARE instance at it:
 
 ```env
-REACT_ENABLED_APPS=ohcnetwork/care_excalidraw_fe@http://localhost:8788/care_excalidraw/assets/remoteEntry.js
+REACT_ENABLED_APPS=ohcnetwork/care_excalidraw_fe@localhost:8788/care_excalidraw/assets/remoteEntry.js
 ```
 
 ## Triggering a single-plugin rebuild
