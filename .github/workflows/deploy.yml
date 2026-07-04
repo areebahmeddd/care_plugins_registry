@@ -130,7 +130,7 @@ jobs:
 
       - name: Assemble output directory
         run: |
-          mkdir -p merged-dist
+          mkdir -p merged-dist merged-dist/assets
 
           for artifact_dir in artifacts/plugin-*/; do
             slug="${artifact_dir#artifacts/plugin-}"
@@ -138,6 +138,7 @@ jobs:
             [ -z "$slug" ] && continue
             mkdir -p "merged-dist/$slug"
             cp -r "$artifact_dir/." "merged-dist/$slug/"
+            cp -rn "$artifact_dir/assets/." merged-dist/assets/ 2>/dev/null || true
             echo "$slug  ($(du -sh "merged-dist/$slug" | cut -f1))"
           done
 
