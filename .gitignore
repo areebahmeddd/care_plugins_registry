@@ -4,6 +4,9 @@ node_modules/
 # Build output
 merged-dist/
 
+# Local plugin sources cloned by build-local.sh
+src/
+
 # Caddy local state
 Caddyfile.lock
 

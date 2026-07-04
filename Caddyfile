@@ -38,7 +38,11 @@
         Cache-Control "public, max-age=3600"
     }
 
-    # Registry manifest: always fetch fresh
+    # @excalidraw/excalidraw CSS uses absolute /assets/ font paths; rewrite to the plugin subdirectory.
+    @rootAssets path_regexp rootassets ^/assets/(.+)$
+    rewrite @rootAssets /care_excalidraw/assets/{re.rootassets.1}
+
+    # Manifest: always fetch fresh
     @manifest path /manifest.json
     header @manifest {
         Cache-Control               "no-store, must-revalidate"
