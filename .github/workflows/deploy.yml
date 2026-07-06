@@ -4,11 +4,6 @@ on:
   push:
     branches: [main, docker]
   workflow_dispatch:
-    inputs:
-      plugin_filter:
-        description: "Comma-separated plugin slugs to rebuild (leave empty to rebuild all)"
-        required: false
-        default: ""
   schedule:
     # Daily rebuild at 12:00 AM IST
     - cron: "30 18 * * *"
@@ -18,140 +13,13 @@ permissions:
   packages: write
 
 jobs:
-  generate-matrix:
-    name: Generate plugin matrix
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Emit matrix from plugins.json
-        id: set-matrix
-        run: |
-          FILTER="${{ github.event.inputs.plugin_filter }}"
-
-          if [ -n "$FILTER" ]; then
-            MATRIX=$(cat plugins.json | jq -c --arg filter "$FILTER" '
-              .plugins
-              | map(select(.slug | IN(($filter | split(",") | map(ltrimstr(" ") | rtrimstr(" ")))[]) ))
-              | {include: [.[] | {slug, name, repo, ref: (.ref // "main"), buildDir: (.buildDir // "dist")}]}
-            ')
-          else
-            MATRIX=$(cat plugins.json | jq -c '
-              {include: [.plugins[] | {slug, name, repo, ref: (.ref // "main"), buildDir: (.buildDir // "dist")}]}
-            ')
-          fi
-
-          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
-          echo "Queued: $(echo $MATRIX | jq -r '[.include[].slug] | join(", ")')"
-
-  build-plugin:
-    name: Build ${{ matrix.name }}
-    needs: generate-matrix
-    runs-on: ubuntu-latest
-    strategy:
-      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
-      fail-fast: false
-
-    steps:
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-
-      - name: Clone plugin source
-        # ref must be a branch name or tag; commit SHAs are not supported by git clone --branch
-        run: |
-          git clone --depth=1 --branch="${{ matrix.ref }}" \
-            "https://github.com/${{ matrix.repo }}.git" \
-            "src/${{ matrix.slug }}"
-          echo "HEAD: $(git -C src/${{ matrix.slug }} rev-parse HEAD)"
-
-      - name: Cache node_modules
-        uses: actions/cache@v6
-        with:
-          path: src/${{ matrix.slug }}/node_modules
-          key: npm-${{ matrix.slug }}-${{ hashFiles(format('src/{0}/package-lock.json', matrix.slug)) }}
-          restore-keys: |
-            npm-${{ matrix.slug }}-
-
-      - name: Install dependencies
-        working-directory: src/${{ matrix.slug }}
-        run: npm ci
-
-      - name: Build plugin
-        working-directory: src/${{ matrix.slug }}
-        run: npm run build
-        # env:
-        # REACT_EKA_ACCESS_TOKEN: ${{ secrets.REACT_EKA_ACCESS_TOKEN }}
-        # REACT_EKA_ENV: ${{ vars.REACT_EKA_ENV }}
-
-      - name: Validate output
-        working-directory: src/${{ matrix.slug }}
-        run: |
-          ENTRY="${{ matrix.buildDir }}/assets/remoteEntry.js"
-          if [ ! -f "$ENTRY" ]; then
-            echo "ERROR: $ENTRY not found"
-            ls -la "${{ matrix.buildDir }}/" || true
-            exit 1
-          fi
-          echo "remoteEntry.js present ($(du -sh ${{ matrix.buildDir }} | cut -f1) total)"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: plugin-${{ matrix.slug }}
-          path: src/${{ matrix.slug }}/${{ matrix.buildDir }}/
-          retention-days: 1
-          if-no-files-found: error
-
   publish:
     name: Build and publish Docker image
-    needs: build-plugin
     runs-on: ubuntu-latest
-    # Proceeds even if individual plugin builds fail
-    if: always() && needs.build-plugin.result != 'skipped'
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-
-      - name: Download plugin artifacts
-        uses: actions/download-artifact@v8
-        with:
-          pattern: plugin-*
-          path: artifacts/
-
-      - name: Assemble output directory
-        run: |
-          mkdir -p merged-dist
-
-          for artifact_dir in artifacts/plugin-*/; do
-            slug="${artifact_dir#artifacts/plugin-}"
-            slug="${slug%/}"
-            [ -z "$slug" ] && continue
-            mkdir -p "merged-dist/$slug"
-            cp -r "$artifact_dir/." "merged-dist/$slug/"
-            echo "$slug  ($(du -sh "merged-dist/$slug" | cut -f1))"
-          done
-
-      - name: Generate manifest
-        run: node scripts/generate-manifest.mjs
-        env:
-          REGISTRY_BASE_URL: ${{ vars.REGISTRY_BASE_URL }}
-
-      - name: Publish summary
-        run: |
-          TOTAL=$(ls merged-dist/ | grep -v '^manifest' | wc -l)
-          echo "Packaging $TOTAL plugin(s) into Docker image"
-          du -sh merged-dist/*/ 2>/dev/null | sort -h || true
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
@@ -183,5 +51,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            REGISTRY_BASE_URL=${{ vars.REGISTRY_BASE_URL }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

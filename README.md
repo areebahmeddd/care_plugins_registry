@@ -1,6 +1,6 @@
 # CARE Plugins Registry
 
-A single Docker image (served by [Caddy](https://caddyserver.com)) that builds and hosts all CARE frontend plugins under one domain.
+A Docker image that builds and hosts all CARE frontend plugins under one domain, served by [Caddy](https://caddyserver.com).
 
 ```
 https://your-registry-domain.com/<slug>/assets/remoteEntry.js
@@ -8,16 +8,17 @@ https://your-registry-domain.com/<slug>/assets/remoteEntry.js
 
 ## Overview
 
-Each CARE frontend plugin is a [Vite Module Federation](https://github.com/originjs/vite-plugin-federation) remote that `care_fe` loads at runtime via a `remoteEntry.js` URL. This registry centralises all plugins into a single deployment: one pipeline, one image, one domain.
+Each CARE frontend plugin is a [Vite Module Federation](https://github.com/originjs/vite-plugin-federation) remote that `care_fe` loads at runtime via a `remoteEntry.js` URL. This registry builds all plugins inside a single Docker image and serves them from one domain.
 
 ```
 plugins.json
     |
     v
-GitHub Actions matrix  (one parallel job per plugin)
-    |  git clone → npm ci → npm run build → upload artifact
+Docker multi-stage build  (all plugin builds run in parallel via BuildKit)
+    |  git clone + npm ci + npm run build  (per plugin, inside Docker)
+    |  generate manifest.json
     v
-publish job  (merges all artifacts, generates manifest.json, docker build)
+Caddy static file server  (baked into the final image)
     |
     v
 GHCR (ghcr.io/areebahmeddd/care_plugins_registry)
@@ -25,20 +26,6 @@ GHCR (ghcr.io/areebahmeddd/care_plugins_registry)
     v
 VPS / any Docker host
     docker compose pull && docker compose up -d
-```
-
-```
-merged-dist/  (baked into the image at build time)
-  care_excalidraw/
-    assets/
-      remoteEntry.js
-      <hashed-chunks>.js
-    locale/
-      en.json
-  care_ai_vision/
-    assets/
-      remoteEntry.js
-  manifest.json
 ```
 
 ## Supported plugins
@@ -55,27 +42,28 @@ merged-dist/  (baked into the image at build time)
 
 ### 1. Add the repository variable
 
-In **Settings → Secrets and variables → Actions → Variables**:
+In **Settings > Secrets and variables > Actions > Variables**:
 
-| Name                | Value                                |
-| ------------------- | ------------------------------------ |
-| `REGISTRY_BASE_URL` | `https://your-registry-domain.com`   |
+| Name                | Value                              |
+| ------------------- | ---------------------------------- |
+| `REGISTRY_BASE_URL` | `https://your-registry-domain.com` |
 
-`GITHUB_TOKEN` is provided automatically — no extra secrets needed for GHCR.
+`GITHUB_TOKEN` is provided automatically. No extra secrets are needed for GHCR.
 
 ### 2. Push to main
 
-The workflow reads `plugins.json`, builds all plugins in parallel, assembles `merged-dist/`, generates `manifest.json`, then builds and pushes a multi-platform Docker image to GHCR:
+The workflow builds a multi-platform Docker image with all plugins baked in and pushes it to GHCR:
 
 ```
 ghcr.io/areebahmeddd/care_plugins_registry:latest
 ghcr.io/areebahmeddd/care_plugins_registry:sha-<short-sha>
 ```
 
+`REGISTRY_BASE_URL` is passed as a build argument and baked into `manifest.json` at build time.
+
 ### 3. Run on a server
 
 ```bash
-# Pull docker-compose.yml onto your server
 curl -O https://raw.githubusercontent.com/areebahmeddd/care_plugins_registry/main/docker-compose.yml
 
 docker compose pull
@@ -96,7 +84,7 @@ http://your-server-ip/manifest.json
 REACT_ENABLED_APPS=ohcnetwork/care_excalidraw_fe@your-registry-domain.com/care_excalidraw/assets/remoteEntry.js
 ```
 
-> Note: no `https://` prefix — `care_fe` adds the protocol automatically.
+Note: no `https://` prefix. `care_fe` adds the protocol automatically.
 
 ### Via the plug_config API
 
@@ -125,16 +113,18 @@ Add an entry to `plugins.json`:
 }
 ```
 
+Add a corresponding build stage to the `Dockerfile` following the same pattern as the existing stages.
+
 Validate the entry locally:
 
 ```bash
 npm run validate
 ```
 
-Merge to `main`. The plugin becomes available at:
+Push to `main`. The plugin becomes available at:
 
 ```
-https://your-registry-domain.com/<slug>/assets/remoteEntry.js
+https://your-registry-domain.com/care_my_plugin/assets/remoteEntry.js
 ```
 
 ## Pinning versions
@@ -147,33 +137,19 @@ https://your-registry-domain.com/<slug>/assets/remoteEntry.js
 
 ## Local testing
 
+The Dockerfile is self-contained. Pass `REGISTRY_BASE_URL` as a build argument to set the base URL baked into `manifest.json`.
+
 ```bash
-# Build one plugin manually
-git clone --depth=1 https://github.com/ohcnetwork/care_excalidraw_fe
-cd care_excalidraw_fe && npm ci && npm run build && cd ..
-
-# Assemble
-mkdir -p merged-dist/care_excalidraw
-cp -r care_excalidraw_fe/dist/. merged-dist/care_excalidraw/
-
-# Generate manifest
-REGISTRY_BASE_URL=http://localhost node scripts/generate-manifest.mjs
-
-# Build and run the image
-docker build -t care_plugins_registry .
-docker run -p 80:80 care_plugins_registry
+./scripts/build-local.sh
+# or manually:
+docker build --build-arg REGISTRY_BASE_URL=http://localhost:8080 --tag care-plugins-local .
+docker run --rm -p 8080:80 care-plugins-local
 ```
 
-Point a local CARE instance at it:
+Set in `care_fe/.env`:
 
 ```env
-REACT_ENABLED_APPS=ohcnetwork/care_excalidraw_fe@localhost/care_excalidraw/assets/remoteEntry.js
+REACT_ENABLED_APPS=ohcnetwork/care_excalidraw_fe@localhost:8080/care_excalidraw/assets/remoteEntry.js
 ```
 
-## Triggering a single-plugin rebuild
-
-```bash
-gh workflow run deploy.yml --field plugin_filter=care_excalidraw
-```
-
-Leave `plugin_filter` empty to rebuild all plugins.
+The Caddy config does not change between environments. Only `manifest.json` content differs based on the `REGISTRY_BASE_URL` used at build time.

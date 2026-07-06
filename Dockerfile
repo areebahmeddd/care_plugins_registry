@@ -1,8 +1,73 @@
-# Plugins are built in CI and assembled into merged-dist/ before this image is built.
-# This image packages those static files into Caddy for serving.
-FROM caddy:2-alpine
+# syntax=docker/dockerfile:1
+ARG REGISTRY_BASE_URL=https://plugins.areeb.dev
 
+# Base: node + git
+
+FROM node:22-alpine AS base
+RUN apk add --no-cache git
+
+# Plugin builds (run in parallel by BuildKit)
+
+FROM base AS build-care_ai_vision
+WORKDIR /plugin
+RUN git clone --depth=1 --branch=main \
+    https://github.com/ohcnetwork/care_ai_vision_fe.git .
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --cache /root/.npm
+RUN npm run build
+
+FROM base AS build-care_analytics
+WORKDIR /plugin
+RUN git clone --depth=1 --branch=master \
+    https://github.com/ohcnetwork/care_analytics_fe.git .
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --cache /root/.npm
+RUN npm run build
+
+FROM base AS build-care_excalidraw
+WORKDIR /plugin
+RUN git clone --depth=1 --branch=main \
+    https://github.com/ohcnetwork/care_excalidraw_fe.git .
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --cache /root/.npm
+RUN npm run build
+
+FROM base AS build-care_pretty_print
+WORKDIR /plugin
+RUN git clone --depth=1 --branch=main \
+    https://github.com/ohcnetwork/care_pretty_print_fe.git .
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --cache /root/.npm
+RUN npm run build
+
+FROM base AS build-care_system_diagnostics
+WORKDIR /plugin
+RUN git clone --depth=1 --branch=main \
+    https://github.com/ohcnetwork/care_system_diagnostics_fe.git .
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --cache /root/.npm
+RUN npm run build
+
+# Assemble dist and generate manifest
+
+FROM base AS assemble
+ARG REGISTRY_BASE_URL
+WORKDIR /app
+
+COPY plugins.json .
+COPY scripts/generate-manifest.mjs scripts/
+
+COPY --from=build-care_ai_vision          /plugin/dist/ merged-dist/care_ai_vision/
+COPY --from=build-care_analytics          /plugin/dist/ merged-dist/care_analytics/
+COPY --from=build-care_excalidraw         /plugin/dist/ merged-dist/care_excalidraw/
+COPY --from=build-care_pretty_print       /plugin/dist/ merged-dist/care_pretty_print/
+COPY --from=build-care_system_diagnostics /plugin/dist/ merged-dist/care_system_diagnostics/
+
+RUN REGISTRY_BASE_URL=${REGISTRY_BASE_URL} node scripts/generate-manifest.mjs
+
+# Final image
+
+FROM caddy:2-alpine AS runtime
 COPY Caddyfile /etc/caddy/Caddyfile
-COPY merged-dist/ /srv/
-
+COPY --from=assemble /app/merged-dist/ /srv/
 EXPOSE 80
