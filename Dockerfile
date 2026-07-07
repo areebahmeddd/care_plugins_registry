@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG REGISTRY_BASE_URL=https://plugins.areeb.dev
+ARG REGISTRY_BASE_URL=https://plugins.ohc.network
 
 # Base: node + git
 
