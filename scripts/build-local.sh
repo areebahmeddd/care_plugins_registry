@@ -3,20 +3,24 @@
 #
 # Usage:
 #   ./scripts/build-local.sh
+#   PLUGINS=care_excalidraw,care_analytics ./scripts/build-local.sh
 #
-# The Dockerfile handles everything: git clone, npm ci, npm run build,
-# manifest generation, and packaging into Caddy.
+# Set PLUGINS to a comma-separated list of slugs to build a subset.
+# Leave unset to build all plugins from plugins.json.
 #
-# Then run:
+# After building, run:
 #   docker run --rm -p 8080:80 care-plugins-local
 #
-# And set in care_fe/.env:
+# Set in care_fe/.env:
 #   REACT_ENABLED_APPS=ohcnetwork/care_excalidraw_fe@localhost:8080/care_excalidraw/assets/remoteEntry.js
 
 set -euo pipefail
 
 REGISTRY_BASE_URL="${REGISTRY_BASE_URL:-http://localhost:8080}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+echo "Generating Dockerfile..."
+node "$ROOT/scripts/generate-dockerfile.mjs"
 
 echo "Building care-plugins-local (REGISTRY_BASE_URL=${REGISTRY_BASE_URL})"
 

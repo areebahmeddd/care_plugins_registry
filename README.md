@@ -14,14 +14,17 @@ Each CARE frontend plugin is a [Vite Module Federation](https://github.com/origi
 plugins.json
     |
     v
-Docker multi-stage build
-    |  git clone + npm ci + npm run build  (per plugin, parallel via BuildKit)
-    |  generate manifest.json
-    v
-Caddy static file server
+npm run docker  (writes Dockerfile with one stage per plugin)
     |
     v
-GHCR (ghcr.io/areebahmeddd/care_plugins_registry)
+docker build  (multi-stage, parallel via BuildKit)
+    |  git clone + npm ci + npm run build  (per plugin)
+    |  generate manifest.json
+    v
+Caddy static file server  (baked into final image)
+    |
+    v
+GHCR  (ghcr.io/areebahmeddd/care_plugins_registry)
     |
     v
 VPS / any Docker host
@@ -42,11 +45,11 @@ VPS / any Docker host
 
 `REGISTRY_BASE_URL` is a Docker build argument. It sets the base URL written into `manifest.json`, which `care_fe` uses to load each plugin. It is not a runtime variable; changing it requires a new image build.
 
-| Context                     | How to set it                                                                                             |
-| --------------------------- | --------------------------------------------------------------------------------------------------------- |
-| GitHub Actions (production) | Repository variable: **Settings > Secrets and variables > Actions > Variables**                           |
-| Local dev                   | `REGISTRY_BASE_URL=http://localhost:8080 ./scripts/build-local.sh` (defaults to `http://localhost:8080`)  |
-| Manual build                | `docker build --build-arg REGISTRY_BASE_URL=https://your-domain.com .`                                    |
+| Context                     | How to set it                                                                                            |
+| --------------------------- | -------------------------------------------------------------------------------------------------------- |
+| GitHub Actions (production) | Repository variable: **Settings > Secrets and variables > Actions > Variables**                          |
+| Local dev                   | `REGISTRY_BASE_URL=http://localhost:8080 ./scripts/build-local.sh` (defaults to `http://localhost:8080`) |
+| Manual build                | `npm run docker && docker build --build-arg REGISTRY_BASE_URL=https://your-domain.com`                   |
 
 ## Deployment
 
@@ -62,12 +65,26 @@ In **Settings > Secrets and variables > Actions > Variables**, add:
 
 ### 2. Push to main
 
-The workflow builds and pushes a multi-platform Docker image to GHCR:
+The workflow generates the Dockerfile from `plugins.json`, then builds and pushes a multi-platform Docker image to GHCR:
 
 ```
 ghcr.io/areebahmeddd/care_plugins_registry:latest
 ghcr.io/areebahmeddd/care_plugins_registry:sha-<short-sha>
 ```
+
+To build a custom image with a specific plugin set, trigger the workflow manually and set both inputs:
+
+| Input     | Description                      | Example                          |
+| --------- | -------------------------------- | -------------------------------- |
+| `tag`     | Image tag to push                | `minimal`                        |
+| `plugins` | Comma-separated slugs to include | `care_excalidraw,care_analytics` |
+
+```
+Trigger: tag=minimal  plugins=care_excalidraw,care_analytics
+Result:  ghcr.io/areebahmeddd/care_plugins_registry:minimal
+```
+
+Leave both inputs empty to rebuild the full `latest` image. Leave `tag` empty and set `plugins` to build a subset under the `latest` tag.
 
 ### 3. Run on a server
 
@@ -117,15 +134,13 @@ No `https://` prefix. `care_fe` adds the protocol automatically.
 }
 ```
 
-2. Add a matching build stage to the `Dockerfile`.
-
-3. Validate locally:
+1. Validate locally:
 
 ```bash
 npm run validate
 ```
 
-4. Push to `main`. The plugin is available at:
+1. Push to `main`. The Dockerfile is generated automatically by the workflow. The plugin is available at:
 
 ```
 https://your-registry-domain.com/care_my_plugin/assets/remoteEntry.js
@@ -141,10 +156,15 @@ https://your-registry-domain.com/care_my_plugin/assets/remoteEntry.js
 
 ## Local testing
 
+The Dockerfile is generated from `plugins.json` before each build. `build-local.sh` handles this automatically.
+
 ```bash
+# Build all plugins
 ./scripts/build-local.sh
-# or manually:
-docker build --build-arg REGISTRY_BASE_URL=http://localhost:8080 --tag care-plugins-local .
+
+# Build a subset
+PLUGINS=care_excalidraw,care_analytics ./scripts/build-local.sh
+
 docker run --rm -p 8080:80 care-plugins-local
 ```
 

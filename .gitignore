@@ -4,6 +4,9 @@ node_modules/
 # Build output
 merged-dist/
 
+# Generated at build time by scripts/generate-dockerfile.mjs
+Dockerfile
+
 # Local plugin sources cloned by build-local.sh
 src/
 

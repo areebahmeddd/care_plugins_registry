@@ -4,7 +4,8 @@
   "description": "Docker + Caddy deployment for all CARE frontend plugins.",
   "type": "module",
   "scripts": {
-    "generate-manifest": "node scripts/generate-manifest.mjs",
+    "docker": "node scripts/generate-dockerfile.mjs",
+    "manifest": "node scripts/generate-manifest.mjs",
     "validate": "node scripts/validate-plugins.mjs"
   }
 }

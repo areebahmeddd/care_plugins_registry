@@ -1,10 +1,6 @@
 #!/usr/bin/env node
-/**
- * Writes merged-dist/manifest.json after all plugins are assembled.
- * Lists every deployed plugin with its remoteEntry URL and appBaseUrl.
- *
- * Usage: node scripts/generate-manifest.mjs
- */
+// Writes merged-dist/manifest.json after all plugins are assembled.
+// Usage: npm run manifest
 
 import { readFileSync, writeFileSync, readdirSync, existsSync } from "fs";
 import { resolve, join } from "path";
@@ -15,7 +11,6 @@ const PLUGINS_JSON = join(ROOT, "plugins.json");
 
 const registry = JSON.parse(readFileSync(PLUGINS_JSON, "utf8"));
 
-// slug to config lookup
 const pluginsBySlug = Object.fromEntries(
   registry.plugins.map((p) => [p.slug, p]),
 );

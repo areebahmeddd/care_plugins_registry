@@ -1,9 +1,6 @@
 #!/usr/bin/env node
-/**
- * Validates plugins.json entries and checks that each repo is reachable.
- *
- * Usage: node scripts/validate-plugins.mjs
- */
+// Validates plugins.json entries and checks that each repo is reachable.
+// Usage: npm run validate
 
 import { readFileSync } from "fs";
 import { resolve } from "path";
